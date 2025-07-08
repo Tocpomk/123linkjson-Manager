@@ -76,6 +76,12 @@ class LinkPanel:
                   bootstyle="secondary",
                   width=8).pack(side=LEFT, padx=(0, 5))
         
+        # 清除按钮
+        ttk.Button(center_frame, text="清除秒链", 
+                  command=self.clear_text,
+                  bootstyle="secondary",
+                  width=8).pack(side=LEFT, padx=(0, 5))
+        
         # 添加链接按钮
         ttk.Button(center_frame, text="添加秒链", 
                   command=self.add_link,
@@ -93,13 +99,10 @@ class LinkPanel:
         # 首先尝试从文本框获取内容
         link_text = self.link_text.get("1.0", tk.END).strip()
         
-        # 如果文本框为空，尝试从剪贴板获取
+        # 如果文本框为空，提示用户输入
         if not link_text:
-            try:
-                link_text = self.app.root.clipboard_get()
-            except tk.TclError:
-                messagebox.showwarning("警告", "请输入秒链或确保剪贴板中有内容")
-                return
+            messagebox.showwarning("提示", "请输入秒链")
+            return
         
         # 创建新的链接查看器弹窗
         self.link_viewer = LinkViewer(self.app.root, self.app)
@@ -159,6 +162,10 @@ class LinkPanel:
                 
         except Exception as e:
             messagebox.showerror("错误", f"添加链接时出错: {str(e)}")
+    
+    def clear_text(self):
+        """清除文本框内容"""
+        self.link_text.delete("1.0", tk.END)
     
     def paste_from_clipboard(self):
         """从剪贴板粘贴内容并处理链接"""

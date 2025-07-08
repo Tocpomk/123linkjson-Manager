@@ -74,28 +74,31 @@ class FilePanel:
         file_ops_frame.pack(fill=X, pady=5)
         
         # 排序按钮框架（左侧）
-        sort_frame = ttk.Frame(file_ops_frame)
-        sort_frame.pack(side=LEFT, fill=X, expand=True)
+        # sort_frame = ttk.Frame(file_ops_frame)
+        # sort_frame.pack(side=LEFT, fill=X, expand=True)
         
         # 排序按钮
-        ttk.Button(sort_frame, text="↑", width=3, 
-                  command=lambda: self.sort_files(reverse=False),
-                  bootstyle="primary-outline").pack(side=LEFT, padx=2)
-        ttk.Button(sort_frame, text="↓", width=3,
-                  command=lambda: self.sort_files(reverse=True),
-                  bootstyle="primary-outline").pack(side=LEFT, padx=2)
+        # ttk.Button(sort_frame, text="↑", width=3, 
+        #           command=lambda: self.sort_files(reverse=False),
+        #           bootstyle="primary-outline").pack(side=LEFT, padx=2)
+        # ttk.Button(sort_frame, text="↓", width=3,
+        #           command=lambda: self.sort_files(reverse=True),
+        #           bootstyle="primary-outline").pack(side=LEFT, padx=2)
         
         # 按钮框架（右侧）
         btn_frame = ttk.Frame(self.frame)
         btn_frame.pack(fill=X, pady=5, padx=5)
         
-        # 添加文件按钮和合并按钮
+        # 添加文件按钮、合并按钮和文件对比按钮
         ttk.Button(btn_frame, text="添加文件", 
                   command=self.add_files,
                   bootstyle="primary").pack(fill=X, pady=(0, 5), ipady=3)
         ttk.Button(btn_frame, text="合并文件",
                   command=self.merge_files,
-                  bootstyle="primary").pack(fill=X, ipady=3)
+                  bootstyle="primary").pack(fill=X, pady=(0, 5), ipady=3)
+        ttk.Button(btn_frame, text="文件对比",
+                  command=self.compare_files,
+                  bootstyle="warning").pack(fill=X, ipady=3)
     
     def add_files(self):
         """通过文件对话框添加JSON文件"""
@@ -451,3 +454,155 @@ class FilePanel:
             messagebox.showinfo("成功", message)
         else:
             messagebox.showerror("错误", message)
+    
+    def compare_files(self):
+        """对比选中的两个文件"""
+        selected = self.file_listbox.curselection()
+        if not selected or len(selected) != 2:
+            messagebox.showwarning("警告", "请选择恰好两个文件进行对比")
+            return
+        
+        # 获取选中的文件路径
+        filepaths = []
+        filenames = []
+        for idx in selected:
+            filename = self.file_listbox.get(idx)
+            if filename in self.file_paths:
+                filepath = self.file_paths[filename]
+                if os.path.exists(filepath):
+                    filepaths.append(filepath)
+                    filenames.append(filename)
+        
+        if len(filepaths) != 2:
+            messagebox.showwarning("警告", "需要恰好两个有效的文件才能对比")
+            return
+        
+        # 创建对比选择对话框
+        self.show_compare_dialog(filepaths, filenames)
+    
+    def show_compare_dialog(self, filepaths, filenames):
+        """显示对比选择对话框"""
+        # 创建对话框
+        dialog = tk.Toplevel(self.app.root)
+        dialog.title("文件对比选择")
+        dialog.geometry("400x200")
+        dialog.transient(self.app.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.update_idletasks()
+        width = dialog.winfo_width()
+        height = dialog.winfo_height()
+        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (dialog.winfo_screenheight() // 2) - (height // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # 创建主框架
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=BOTH, expand=True)
+        
+        # 标题
+        ttk.Label(main_frame, text="选择对比类型", font=("", 12, "bold")).pack(pady=(0, 20))
+        
+        # 显示选中的文件
+        ttk.Label(main_frame, text=f"文件1: {filenames[0]}", font=("", 10)).pack(anchor=W, pady=2)
+        ttk.Label(main_frame, text=f"文件2: {filenames[1]}", font=("", 10)).pack(anchor=W, pady=2)
+        
+        # 按钮框架
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(pady=20)
+        
+        # 相同秒链按钮
+        ttk.Button(
+            btn_frame,
+            text="相同秒链",
+            command=lambda: self.perform_compare(filepaths, "same", dialog),
+            bootstyle="success",
+            width=12
+        ).pack(side=LEFT, padx=(0, 10))
+        
+        # 不同秒链按钮
+        ttk.Button(
+            btn_frame,
+            text="不同秒链",
+            command=lambda: self.perform_compare(filepaths, "different", dialog),
+            bootstyle="warning",
+            width=12
+        ).pack(side=LEFT, padx=(0, 10))
+        
+        # 取消按钮
+        ttk.Button(
+            btn_frame,
+            text="取消",
+            command=dialog.destroy,
+            bootstyle="secondary",
+            width=12
+        ).pack(side=LEFT)
+    
+    def perform_compare(self, filepaths, compare_type, dialog):
+        """执行文件对比"""
+        dialog.destroy()
+        
+        try:
+            # 加载两个文件的数据
+            from models.json_data import JsonData
+            
+            data1 = JsonData()
+            success1, error1 = data1.load(filepaths[0])
+            if not success1:
+                messagebox.showerror("错误", f"无法加载文件1: {error1}")
+                return
+            
+            data2 = JsonData()
+            success2, error2 = data2.load(filepaths[1])
+            if not success2:
+                messagebox.showerror("错误", f"无法加载文件2: {error2}")
+                return
+            
+            # 获取文件中的秒链
+            files1 = data1.files if data1.files else []
+            files2 = data2.files if data2.files else []
+            
+            # 创建秒链集合
+            links1 = set()
+            links2 = set()
+            
+            for file in files1:
+                # 生成完整秒链
+                from utils.link_parser import LinkParser
+                full_link = LinkParser.generate_link([file])
+                links1.add(full_link)
+            
+            for file in files2:
+                # 生成完整秒链
+                from utils.link_parser import LinkParser
+                full_link = LinkParser.generate_link([file])
+                links2.add(full_link)
+            
+            # 根据对比类型获取结果
+            if compare_type == "same":
+                # 相同秒链（交集）
+                result_links = links1.intersection(links2)
+                title = "相同秒链"
+            else:
+                # 不同秒链（对称差集）
+                result_links = links1.symmetric_difference(links2)
+                title = "不同秒链"
+            
+            # 显示结果
+            if result_links:
+                # 创建秒链查看器显示结果
+                from gui.link_viewer import LinkViewer
+                viewer = LinkViewer(self.app.root, self.app)
+                viewer.title(f"文件对比结果 - {title}")
+                
+                # 将秒链转换为文本格式
+                link_text = "\n".join(result_links)
+                viewer.parse_and_show_links(link_text)
+                
+                messagebox.showinfo("对比完成", f"找到 {len(result_links)} 个{title}")
+            else:
+                messagebox.showinfo("对比完成", f"没有找到{title}")
+                
+        except Exception as e:
+            messagebox.showerror("错误", f"执行文件对比时出错: {str(e)}")
