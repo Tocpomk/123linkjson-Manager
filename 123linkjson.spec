@@ -71,7 +71,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='E:\\Dowond\\123linkjson\\new\\resources\\icn.png',  # 应用图标
+    icon='resources\\icn.png',  # 应用图标
 )
 
 # 可选：如果要打包成单文件夹而不是单文件
