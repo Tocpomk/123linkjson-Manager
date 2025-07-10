@@ -88,17 +88,20 @@ class FilePanel:
         # 按钮框架（右侧）
         btn_frame = ttk.Frame(self.frame)
         btn_frame.pack(fill=X, pady=5, padx=5)
-        
-        # 添加文件按钮、合并按钮和文件对比按钮
-        ttk.Button(btn_frame, text="添加文件", 
-                  command=self.add_files,
-                  bootstyle="primary").pack(fill=X, pady=(0, 5), ipady=3)
-        ttk.Button(btn_frame, text="合并文件",
-                  command=self.merge_files,
-                  bootstyle="primary").pack(fill=X, pady=(0, 5), ipady=3)
-        ttk.Button(btn_frame, text="文件对比",
-                  command=self.compare_files,
-                  bootstyle="warning").pack(fill=X, ipady=3)
+
+        # 2*2网格布局按钮（不含推送列表）
+        btn_add = ttk.Button(btn_frame, text="添加文件", command=self.add_files, bootstyle="primary")
+        btn_compare = ttk.Button(btn_frame, text="文件对比", command=self.compare_files, bootstyle="warning")
+        btn_split = ttk.Button(btn_frame, text="拆分文件", command=self.split_files, bootstyle="info")
+        btn_merge = ttk.Button(btn_frame, text="合并文件", command=self.merge_files, bootstyle="primary")
+
+        btn_add.grid(row=0, column=0, sticky="ew", padx=2, pady=2, ipady=3)
+        btn_compare.grid(row=0, column=1, sticky="ew", padx=2, pady=2, ipady=3)
+        btn_split.grid(row=1, column=0, sticky="ew", padx=2, pady=2, ipady=3)
+        btn_merge.grid(row=1, column=1, sticky="ew", padx=2, pady=2, ipady=3)
+
+        btn_frame.columnconfigure(0, weight=1)
+        btn_frame.columnconfigure(1, weight=1)
     
     def add_files(self):
         """通过文件对话框添加JSON文件"""
@@ -606,3 +609,218 @@ class FilePanel:
                 
         except Exception as e:
             messagebox.showerror("错误", f"执行文件对比时出错: {str(e)}")
+
+    def split_files(self):
+        """拆分文件功能入口，弹窗设置和预览"""
+        # 获取当前选中文件
+        selection = self.file_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("提示", "请先选择要拆分的JSON文件")
+            return
+        filename = self.file_listbox.get(selection[0])
+        filepath = self.file_paths.get(filename)
+        if not filepath or not os.path.exists(filepath):
+            messagebox.showerror("错误", f"文件不存在: {filepath}")
+            return
+        # 读取JSON内容
+        import json
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                json_data = json.load(f)
+        except Exception as e:
+            messagebox.showerror("错误", f"读取JSON文件失败: {e}")
+            return
+        # 分析结构
+        from utils import json_splitter
+        analysis = json_splitter.analyze_json_structure(json_data)
+        # 居中弹窗函数
+        def center_window(win, width, height):
+            win.update_idletasks()
+            x = win.winfo_screenwidth() // 2 - width // 2
+            y = win.winfo_screenheight() // 2 - height // 2
+            win.geometry(f"{width}x{height}+{x}+{y}")
+        # 创建弹窗
+        win = tk.Toplevel(self.parent)
+        win.title(f"拆分文件 - {filename}")
+        center_window(win, 520, 520)
+        win.transient(self.parent)
+        win.grab_set()
+        # 结构分析区
+        frm_top = ttk.Frame(win)
+        frm_top.pack(fill=tk.X, padx=10, pady=8)
+        ttk.Label(frm_top, text="结构分析:", font=(None, 11, 'bold')).pack(anchor='w')
+        txt = tk.Text(frm_top, height=15, wrap='none', font=('Consolas', 10))
+        txt.pack(fill=tk.X, pady=2)
+        txt.insert('1.0', f"文件数: {analysis.get('fileCount')}\n总大小: {analysis.get('totalSize')}\n最大层级: {analysis.get('maxDepth')}\n\n目录结构:\n{analysis.get('treeString')}")
+        txt.config(state='disabled')
+        # 拆分方式选择
+        frm_mode = ttk.LabelFrame(win, text="选择拆分模式:")
+        frm_mode.pack(fill=tk.X, padx=10, pady=8)
+        split_mode = tk.StringVar(value='folder')
+        frm1 = ttk.Frame(frm_mode)
+        frm1.pack(anchor='w', pady=2)
+        r1 = ttk.Radiobutton(frm1, text="按目录层级", variable=split_mode, value='folder')
+        r1.pack(side='left')
+        ttk.Label(frm1, text="层数:").pack(side='left', padx=(8,0))
+        level_var = tk.IntVar(value=1)
+        level_spin = ttk.Spinbox(frm1, from_=1, to=20, textvariable=level_var, width=4)
+        level_spin.pack(side='left')
+        frm2 = ttk.Frame(frm_mode)
+        frm2.pack(anchor='w', pady=2)
+        r2 = ttk.Radiobutton(frm2, text="按文件数量", variable=split_mode, value='count')
+        r2.pack(side='left')
+        ttk.Label(frm2, text="每份:").pack(side='left', padx=(8,0))
+        count_var = tk.IntVar(value=500)
+        count_entry = ttk.Entry(frm2, textvariable=count_var, width=6)
+        count_entry.pack(side='left')
+        # 过滤设置
+        frm_filter = ttk.LabelFrame(win, text="元数据过滤设置(可选):")
+        frm_filter.pack(fill=tk.X, padx=10, pady=8)
+        ext_vars = {ext: tk.BooleanVar() for ext in ['nfo','jpg','jpeg','png']}
+        row = ttk.Frame(frm_filter)
+        row.pack(anchor='w', pady=2)
+        ttk.Checkbutton(row, text='.nfo', variable=ext_vars['nfo']).pack(side='left', padx=2)
+        ttk.Checkbutton(row, text='.jpg/.jpeg', variable=ext_vars['jpg']).pack(side='left', padx=2)
+        ttk.Checkbutton(row, text='.png', variable=ext_vars['png']).pack(side='left', padx=2)
+        ttk.Label(row, text='自定义:').pack(side='left', padx=(8,0))
+        custom_ext_var = tk.StringVar()
+        custom_entry = ttk.Entry(row, textvariable=custom_ext_var, width=18)
+        custom_entry.pack(side='left')
+        ttk.Label(row, text='(逗号隔开)').pack(side='left', padx=(2,0))
+
+        def ellipsis_filename(idx, base, ext):
+            idx_str = f"{idx+1:02d}_"
+            maxlen = 30
+            name = idx_str + base + ext
+            if len(name) <= maxlen:
+                return name
+            else:
+                prefix = base[:6]
+                suffix = base[-8:] if len(base) > 8 else base
+                return f"{idx_str}{prefix}...{suffix}{ext}"
+
+        def on_push_all():
+            exts = []
+            if ext_vars['nfo'].get(): exts.append('nfo')
+            if ext_vars['jpg'].get(): exts.extend(['jpg','jpeg'])
+            if ext_vars['png'].get(): exts.append('png')
+            custom = custom_ext_var.get().strip()
+            if custom:
+                exts += [e.strip().lower() for e in custom.split(',') if e.strip()]
+            filtered_json = json_splitter.filter_json_files(json_data, exts)
+            try:
+                if split_mode.get() == 'folder':
+                    level = level_var.get()
+                    chunks = json_splitter.split_json_by_folder(filtered_json, level)
+                else:
+                    count = count_var.get()
+                    chunks = json_splitter.split_json_by_count(filtered_json, count)
+            except Exception as e:
+                messagebox.showerror("错误", f"拆分失败: {e}")
+                return
+            if not chunks:
+                messagebox.showwarning("提示", "拆分结果为空！")
+                return
+            import os
+            import json as _json
+            base, ext = os.path.splitext(filename)
+            orig_dir = os.path.dirname(filepath)
+            pushed = 0
+            for i, chunk in enumerate(chunks):
+                full_name = f"{i+1:02d}_{base}{ext}"
+                save_path = os.path.join(orig_dir, full_name)
+                with open(save_path, 'w', encoding='utf-8') as f:
+                    _json.dump(chunk, f, ensure_ascii=False, indent=2)
+                self.add_file_to_list(full_name, save_path)
+                pushed += 1
+            messagebox.showinfo("完成", f"已推送 {pushed} 个文件到列表\n文件已保存在: {orig_dir}")
+            win.destroy()
+
+        def on_confirm():
+            exts = []
+            if ext_vars['nfo'].get(): exts.append('nfo')
+            if ext_vars['jpg'].get(): exts.extend(['jpg','jpeg'])
+            if ext_vars['png'].get(): exts.append('png')
+            custom = custom_ext_var.get().strip()
+            if custom:
+                exts += [e.strip().lower() for e in custom.split(',') if e.strip()]
+            filtered_json = json_splitter.filter_json_files(json_data, exts)
+            try:
+                if split_mode.get() == 'folder':
+                    level = level_var.get()
+                    chunks = json_splitter.split_json_by_folder(filtered_json, level)
+                else:
+                    count = count_var.get()
+                    chunks = json_splitter.split_json_by_count(filtered_json, count)
+            except Exception as e:
+                messagebox.showerror("错误", f"拆分失败: {e}")
+                return
+            if not chunks:
+                messagebox.showwarning("提示", "拆分结果为空！")
+                return
+            win.destroy()
+            show_split_result(chunks)
+
+        # 再创建按钮，只保留“开始拆分”
+        frm_btn = ttk.Frame(win)
+        frm_btn.pack(pady=10)
+        ttk.Button(frm_btn, text="开始拆分", bootstyle="success", command=on_confirm, width=12).pack(side='left', padx=18)
+
+        def show_split_result(chunks):
+            import os
+            res_win = tk.Toplevel(self.parent)
+            res_win.title("拆分结果 - 请选择要保存/推送的文件")
+            center_window(res_win, 480, 420)
+            res_win.transient(self.parent)
+            res_win.grab_set()
+            ttk.Label(res_win, text=f"共拆分为 {len(chunks)} 个文件：", font=(None, 11, 'bold')).pack(anchor='w', padx=10, pady=(10,2))
+            listbox = tk.Listbox(res_win, selectmode=tk.MULTIPLE, height=12)
+            listbox.pack(fill=tk.BOTH, expand=True, padx=12, pady=6)
+            base, ext = os.path.splitext(filename)
+            full_filenames = [f"{idx+1:02d}_{base}{ext}" for idx in range(len(chunks))]
+            for idx, chunk in enumerate(chunks):
+                name = ellipsis_filename(idx, base, ext)
+                listbox.insert(tk.END, f"{name}  (文件数:{chunk.get('totalFilesCount', len(chunk.get('files',[])))})")
+            btn_frame = ttk.Frame(res_win)
+            btn_frame.pack(pady=8)
+            def save_selected():
+                sel = listbox.curselection()
+                if not sel:
+                    messagebox.showwarning("提示", "请先选择要保存的文件")
+                    return
+                import json as _json
+                from tkinter import filedialog
+                for i in sel:
+                    chunk = chunks[i]
+                    save_path = filedialog.asksaveasfilename(
+                        title="保存拆分文件",
+                        defaultextension=ext,
+                        initialfile=full_filenames[i],
+                        filetypes=[("JSON文件", "*.json")]
+                    )
+                    if save_path:
+                        with open(save_path, 'w', encoding='utf-8') as f:
+                            _json.dump(chunk, f, ensure_ascii=False, indent=2)
+                messagebox.showinfo("完成", "已保存所选文件，可继续操作或手动关闭窗口")
+            def push_selected():
+                sel = listbox.curselection()
+                if not sel:
+                    messagebox.showwarning("提示", "请先选择要推送的文件")
+                    return
+                import os
+                import json as _json
+                orig_dir = os.path.dirname(filepath)
+                pushed = 0
+                for i in sel:
+                    chunk = chunks[i]
+                    full_name = full_filenames[i]
+                    save_path = os.path.join(orig_dir, full_name)
+                    with open(save_path, 'w', encoding='utf-8') as f:
+                        _json.dump(chunk, f, ensure_ascii=False, indent=2)
+                    self.add_file_to_list(full_name, save_path)
+                    if os.path.exists(save_path):
+                        pushed += 1
+                messagebox.showinfo("完成", f"已推送 {pushed} 个文件到列表\n文件已保存在: {orig_dir}\n可继续操作或手动关闭窗口")
+                # 不自动关闭弹窗
+            ttk.Button(btn_frame, text="保存到本地", bootstyle="primary", command=save_selected, width=12).pack(side='left', padx=18)
+            ttk.Button(btn_frame, text="推送列表", bootstyle="success", command=push_selected, width=12).pack(side='left', padx=18)
