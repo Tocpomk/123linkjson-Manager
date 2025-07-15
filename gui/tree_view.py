@@ -14,6 +14,7 @@ import tkinter as tk
 from tkinter import messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
+from gui.search_bar import SearchBar
 
 
 class TreeView:
@@ -42,32 +43,28 @@ class TreeView:
         """创建树形视图"""
         # 创建主框架
         self.frame = ttk.LabelFrame(self.parent, text="秒链展示列表", padding="10")
-        
-        # 创建顶部按钮框架
-        top_frame = ttk.Frame(self.frame)
-        top_frame.pack(side=TOP, fill=X, pady=(0, 5))
-        
-        # 添加导出选中链接和排序文件按钮
-        ttk.Button(top_frame, text="导出秒链",
-                  command=self.export_selected_links,
-                  bootstyle="info").pack(side=LEFT, padx=5)
-        ttk.Button(top_frame, text="秒链排序",
-                  command=self.sort_current_file,
-                  bootstyle="warning").pack(side=LEFT, padx=5)
-        
-        # 创建树形视图容器
+
+        # 顶部一行：搜索框+按钮
+        top_row = ttk.Frame(self.frame)
+        top_row.pack(side=TOP, fill=X, pady=(0, 5))
+        self.search_value = ''
+        def on_search(value):
+            self.search_value = value
+            self.update_view()
+        self.search_bar = SearchBar(top_row, on_search=on_search)
+        self.search_bar.pack(side='left', fill='x', expand=True, padx=(0, 8))
+        ttk.Button(top_row, text="导出秒链", command=self.export_selected_links, bootstyle="info").pack(side='left', padx=5)
+        ttk.Button(top_row, text="秒链排序", command=self.sort_current_file, bootstyle="warning").pack(side='left', padx=5)
+
+        # 树形视图区域+滚动条
         tree_container = ttk.Frame(self.frame)
         tree_container.pack(side=TOP, fill=BOTH, expand=True)
-        
-        # 创建树形视图
         self.tree = ttk.Treeview(tree_container, selectmode="extended")
         self.tree.pack(side=LEFT, fill=BOTH, expand=True)
-        
-        # 添加滚动条
         scrollbar = ttk.Scrollbar(tree_container, orient=VERTICAL, command=self.tree.yview)
         scrollbar.pack(side=RIGHT, fill=Y)
         self.tree.configure(yscrollcommand=scrollbar.set)
-        
+
         # 创建分页控制面板
         pagination_frame = ttk.Frame(self.frame)
         pagination_frame.pack(side=BOTTOM, fill=X, pady=(5, 0))
@@ -149,6 +146,10 @@ class TreeView:
         
         # 获取所有文件
         all_files = self.app.json_data.files
+        # 搜索过滤
+        if hasattr(self, 'search_value') and self.search_value:
+            keyword = self.search_value.lower()
+            all_files = [f for f in all_files if keyword in f['path'].lower() or keyword in f.get('name', '').lower()]
         total_files = len(all_files)
         
         # 计算总页数

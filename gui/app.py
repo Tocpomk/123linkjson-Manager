@@ -34,13 +34,13 @@ class App:
             root: TkinterDnD.Tk实例，主窗口
         """
         self.root = root
-        self.root.title("123云盘秒链json管理器1.3-beta")
+        self.root.title("123云盘秒链json管理器1.3")
         
         # 设置窗口图标
         self.set_window_icon()
         
         # 设置窗口大小并居中显示
-        self.center_window(1000, 600)
+        self.center_window(1040, 600)
         
         # 初始化数据模型
         self.json_data = None

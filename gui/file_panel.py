@@ -642,17 +642,23 @@ class FilePanel:
         # 创建弹窗
         win = tk.Toplevel(self.parent)
         win.title(f"拆分文件 - {filename}")
-        center_window(win, 520, 520)
+        center_window(win, 600, 540)
         win.transient(self.parent)
         win.grab_set()
         # 结构分析区
         frm_top = ttk.Frame(win)
         frm_top.pack(fill=tk.X, padx=10, pady=8)
         ttk.Label(frm_top, text="结构分析:", font=(None, 11, 'bold')).pack(anchor='w')
-        txt = tk.Text(frm_top, height=15, wrap='none', font=('Consolas', 10))
-        txt.pack(fill=tk.X, pady=2)
+        txt_frame = ttk.Frame(frm_top)
+        txt_frame.pack(fill=tk.X)
+        txt = tk.Text(txt_frame, height=10, wrap='none', font=('Consolas', 10))
+        txt.pack(side='left', fill=tk.X, expand=True, pady=2)
+        scroll = ttk.Scrollbar(txt_frame, orient='vertical', command=txt.yview)
+        scroll.pack(side='right', fill='y')
+        txt.config(yscrollcommand=scroll.set)
         txt.insert('1.0', f"文件数: {analysis.get('fileCount')}\n总大小: {analysis.get('totalSize')}\n最大层级: {analysis.get('maxDepth')}\n\n目录结构:\n{analysis.get('treeString')}")
         txt.config(state='disabled')
+
         # 拆分方式选择
         frm_mode = ttk.LabelFrame(win, text="选择拆分模式:")
         frm_mode.pack(fill=tk.X, padx=10, pady=8)
@@ -673,6 +679,7 @@ class FilePanel:
         count_var = tk.IntVar(value=500)
         count_entry = ttk.Entry(frm2, textvariable=count_var, width=6)
         count_entry.pack(side='left')
+
         # 过滤设置
         frm_filter = ttk.LabelFrame(win, text="元数据过滤设置(可选):")
         frm_filter.pack(fill=tk.X, padx=10, pady=8)
@@ -687,6 +694,23 @@ class FilePanel:
         custom_entry = ttk.Entry(row, textvariable=custom_ext_var, width=18)
         custom_entry.pack(side='left')
         ttk.Label(row, text='(逗号隔开)').pack(side='left', padx=(2,0))
+
+        # 文件命名方式参数
+        frm_naming = ttk.LabelFrame(win, text="文件命名方式:")
+        frm_naming.pack(fill=tk.X, padx=10, pady=8)
+        naming_mode = tk.StringVar(value='seq')
+        rb1 = ttk.Radiobutton(frm_naming, text="序号命名（如01_原文件名）", variable=naming_mode, value='seq')
+        rb1.pack(anchor='w', padx=8, pady=2)
+        rb2 = ttk.Radiobutton(frm_naming, text="按层级文件夹名命名（仅目录层级拆分时可用）", variable=naming_mode, value='folder')
+        rb2.pack(anchor='w', padx=8, pady=2)
+        def update_naming_state(*args):
+            if split_mode.get() == 'folder':
+                rb2.config(state='normal')
+            else:
+                rb2.config(state='disabled')
+                naming_mode.set('seq')
+        split_mode.trace_add('write', update_naming_state)
+        update_naming_state()
 
         def ellipsis_filename(idx, base, ext):
             idx_str = f"{idx+1:02d}_"
@@ -774,12 +798,28 @@ class FilePanel:
             res_win.transient(self.parent)
             res_win.grab_set()
             ttk.Label(res_win, text=f"共拆分为 {len(chunks)} 个文件：", font=(None, 11, 'bold')).pack(anchor='w', padx=10, pady=(10,2))
-            listbox = tk.Listbox(res_win, selectmode=tk.MULTIPLE, height=12)
+            listbox = tk.Listbox(res_win, selectmode=tk.EXTENDED, height=12)
             listbox.pack(fill=tk.BOTH, expand=True, padx=12, pady=6)
             base, ext = os.path.splitext(filename)
-            full_filenames = [f"{idx+1:02d}_{base}{ext}" for idx in range(len(chunks))]
+            # 生成完整名和省略名列表
+            if split_mode.get() == 'folder' and naming_mode.get() == 'folder':
+                # 按目录名命名，重名自动加序号
+                name_count = {}
+                full_filenames = []
+                for chunk in chunks:
+                    common_path = chunk.get('commonPath', '').rstrip('/')
+                    folder_name = os.path.basename(common_path) if common_path else base
+                    count = name_count.get(folder_name, 0) + 1
+                    name_count[folder_name] = count
+                    if count > 1:
+                        file_name = f"{folder_name}_{count}{ext}"
+                    else:
+                        file_name = f"{folder_name}{ext}"
+                    full_filenames.append(file_name)
+            else:
+                full_filenames = [f"{idx+1:02d}_{base}{ext}" for idx in range(len(chunks))]
             for idx, chunk in enumerate(chunks):
-                name = ellipsis_filename(idx, base, ext)
+                name = ellipsis_filename(idx, base, ext) if naming_mode.get() == 'seq' or split_mode.get() != 'folder' else full_filenames[idx]
                 listbox.insert(tk.END, f"{name}  (文件数:{chunk.get('totalFilesCount', len(chunk.get('files',[])))})")
             btn_frame = ttk.Frame(res_win)
             btn_frame.pack(pady=8)
@@ -790,7 +830,10 @@ class FilePanel:
                     return
                 import json as _json
                 from tkinter import filedialog
-                for i in sel:
+                import os
+                if len(sel) == 1:
+                    # 单选时仍用文件对话框
+                    i = sel[0]
                     chunk = chunks[i]
                     save_path = filedialog.asksaveasfilename(
                         title="保存拆分文件",
@@ -801,7 +844,20 @@ class FilePanel:
                     if save_path:
                         with open(save_path, 'w', encoding='utf-8') as f:
                             _json.dump(chunk, f, ensure_ascii=False, indent=2)
-                messagebox.showinfo("完成", "已保存所选文件，可继续操作或手动关闭窗口")
+                        messagebox.showinfo("完成", f"已保存文件: {os.path.basename(save_path)}")
+                else:
+                    # 多选时批量保存到文件夹
+                    target_dir = filedialog.askdirectory(title="选择保存文件夹")
+                    if not target_dir:
+                        return
+                    count = 0
+                    for i in sel:
+                        chunk = chunks[i]
+                        save_path = os.path.join(target_dir, full_filenames[i])
+                        with open(save_path, 'w', encoding='utf-8') as f:
+                            _json.dump(chunk, f, ensure_ascii=False, indent=2)
+                        count += 1
+                    messagebox.showinfo("完成", f"已保存 {count} 个文件到 {target_dir}")
             def push_selected():
                 sel = listbox.curselection()
                 if not sel:
@@ -821,6 +877,5 @@ class FilePanel:
                     if os.path.exists(save_path):
                         pushed += 1
                 messagebox.showinfo("完成", f"已推送 {pushed} 个文件到列表\n文件已保存在: {orig_dir}\n可继续操作或手动关闭窗口")
-                # 不自动关闭弹窗
             ttk.Button(btn_frame, text="保存到本地", bootstyle="primary", command=save_selected, width=12).pack(side='left', padx=18)
             ttk.Button(btn_frame, text="推送列表", bootstyle="success", command=push_selected, width=12).pack(side='left', padx=18)
