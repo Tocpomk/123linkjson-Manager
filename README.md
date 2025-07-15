@@ -2,14 +2,14 @@
 python3.12版本构建，本仓库代码全由ai生成
 主要查看和管理123云盘秒链
 
-![image](https://github.com/user-attachments/assets/873d956a-d83e-4860-ab45-733b7cecb054)
+<img width="1824" height="1106" alt="image" src="https://github.com/user-attachments/assets/34e1461d-5fc1-400e-91b3-a5a7e64632e8" />
+
 
 
 版本更新1.3-beta测试版
 
-1.更新了拆分功能，
-
-2.修复一些体验上的bug
+- 1.更新了拆分功能，
+- 2.修复一些体验上的bug
 
 版本更新1.2
 
