@@ -15,6 +15,7 @@ from tkinter import messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from gui.search_bar import SearchBar
+import re
 
 
 class TreeView:
@@ -149,7 +150,16 @@ class TreeView:
         # 搜索过滤
         if hasattr(self, 'search_value') and self.search_value:
             keyword = self.search_value.lower()
-            all_files = [f for f in all_files if keyword in f['path'].lower() or keyword in f.get('name', '').lower()]
+            def clean_name(s):
+                if not s:
+                    return ''
+                # 去除年份、分辨率、编码等
+                s = re.sub(r'\b(19|20)\d{2}\b', '', s, flags=re.IGNORECASE)  # 年份
+                s = re.sub(r'(480p|720p|1080p|2160p|4k)', '', s, flags=re.IGNORECASE)  # 分辨率
+                s = re.sub(r'(h265|h264|aac|acc|flac|mp3|hevc|x264|x265|ac3|dts|ddp|mkv|mp4|avi|wmv|mov|ts|mpeg|mpg)', '', s, flags=re.IGNORECASE)  # 编码/格式
+                s = re.sub(r'\s+', ' ', s)  # 多余空格
+                return s.strip()
+            all_files = [f for f in all_files if keyword in clean_name(f['path'].lower()) or keyword in clean_name(f.get('name', '').lower())]
         total_files = len(all_files)
         
         # 计算总页数
