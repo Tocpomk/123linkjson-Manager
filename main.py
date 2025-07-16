@@ -19,6 +19,10 @@ def main():
     """主函数，启动应用程序"""
     # 创建支持拖放的Tk根窗口
     root = TkinterDnD.Tk()
+    root['padx'] = 0
+    root['pady'] = 0
+    root.pack_propagate(False)
+    root.grid_propagate(False)
     
     # 创建并启动应用程序
     app = App(root)

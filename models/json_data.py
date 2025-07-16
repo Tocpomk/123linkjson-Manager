@@ -29,10 +29,8 @@ class JsonData:
     def load(self, filepath: str) -> Tuple[bool, str]:
         """
         加载JSON文件
-        
         Args:
             filepath: JSON文件路径
-            
         Returns:
             Tuple[bool, str]: (是否成功, 错误消息)
         """
@@ -40,16 +38,56 @@ class JsonData:
         data, error_msg = read_json_file(filepath)
         if error_msg:
             return False, error_msg
-        
+        # 自动补全统计字段
+        try:
+            from utils.json_handler import fix_json_fields, write_json_file
+            data, changed = fix_json_fields(data)
+            # 新增：补全头部字段
+            if 'scriptVersion' not in data:
+                data['scriptVersion'] = '1.0.1'
+            if 'exportVersion' not in data:
+                data['exportVersion'] = '1.0'
+            if 'usesBase62EtagsInExport' not in data:
+                data['usesBase62EtagsInExport'] = True
+            if 'commonPath' not in data:
+                data['commonPath'] = ''
+            # files字段补全
+            files = data.get('files', [])
+            total_size = 0
+            for i, file in enumerate(files):
+                if 'path' not in file:
+                    file['path'] = file.get('name', f"未命名文件{i+1}")
+                if 'size' not in file:
+                    file['size'] = '0'
+                else:
+                    file['size'] = str(file['size'])
+                if 'etag' not in file:
+                    file['etag'] = file.get('hash', file.get('sha1', ''))
+                total_size += int(file.get('size', 0))
+            # 统计字段
+            data['totalFilesCount'] = len(files)
+            data['totalSize'] = total_size
+            if total_size < 1024:
+                formatted_size = f"{total_size} B"
+            elif total_size < 1024 * 1024:
+                formatted_size = f"{total_size/1024:.2f} KB"
+            elif total_size < 1024 * 1024 * 1024:
+                formatted_size = f"{total_size/1024/1024:.2f} MB"
+            else:
+                formatted_size = f"{total_size/1024/1024/1024:.2f} GB"
+            data['formattedTotalSize'] = formatted_size
+            changed = True
+            if changed:
+                write_json_file(filepath, data)
+        except Exception as e:
+            print(f"[fix_json_fields] 补全统计字段异常: {e}")
         # 验证数据格式
         valid, error_msg = is_valid_123_json(data)
         if not valid:
             return False, error_msg
-        
         # 更新数据
         self.data = data
         self.files = data['files']
-        
         return True, ""
     
     def save(self, filepath: str) -> Tuple[bool, str]:
@@ -126,8 +164,10 @@ class JsonData:
                 added_count += 1
         
         # 排序文件列表
-        self.data = sort_json_data(self.data)
-        self.files = self.data['files']
+        result = sort_json_data(self.data)
+        self.data = result
+        self.files = list(self.data['files'])  # 强制为list
+        self.data['files'] = self.files        # 保证同步
         
         # 更新总计
         self.update_totals()
@@ -156,26 +196,21 @@ class JsonData:
     def remove_files(self, paths: List[str]) -> int:
         """
         从数据中删除指定路径的文件
-        
         Args:
             paths: 要删除的文件路径列表
-            
         Returns:
             int: 删除的文件数量
         """
         if not self.data or not paths:
             return 0
-        
         removed_count = 0
         paths_set = set(paths)
-        
-        # 使用列表推导式过滤掉要删除的文件
+        # 使用列表推导式过滤掉要删除的文件，确保结果为list
         self.files = [file for file in self.files if file['path'] not in paths_set]
-        self.data['files'] = self.files
-        
+        self.files = list(self.files)  # 强制为list
+        self.data['files'] = self.files  # 保证同步
         # 更新总计
         self.update_totals()
-        
         removed_count = len(paths_set)
         return removed_count
     
@@ -229,6 +264,7 @@ class JsonData:
         
         # 排序文件列表
         merged_data = sort_json_data(merged_data)
+        merged_data['files'] = list(merged_data['files'])  # 强制为list
         
         # 更新总计
         total_size = sum(int(file['size']) for file in merged_data['files'])

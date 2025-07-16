@@ -34,13 +34,13 @@ class App:
             root: TkinterDnD.Tk实例，主窗口
         """
         self.root = root
-        self.root.title("123云盘秒链json管理器1.3")
+        self.root.title("123云盘秒链json管理器1.3.1")
         
         # 设置窗口图标
         self.set_window_icon()
         
         # 设置窗口大小并居中显示
-        self.center_window(1040, 600)
+        self.center_window(1050, 700)
         
         # 初始化数据模型
         self.json_data = None
@@ -108,24 +108,26 @@ class App:
                 print(f"无法加载图标文件: {str(e)}")
     
     def create_gui(self):
-        """创建GUI组件"""
+        """
+        创建GUI组件
+        """
         # 创建主框架
-        main_frame = ttk.Frame(self.root, padding="15")
-        main_frame.pack(fill=BOTH, expand=True)
+        main_frame = ttk.Frame(self.root, padding="5")
+        main_frame.pack(fill=BOTH, expand=True, pady=(5, 0))
         
         # 创建左侧文件面板
         self.file_panel = FilePanel(main_frame, self)
-        self.file_panel.frame.pack(side=LEFT, fill=Y, padx=(0, 10), pady=5)
+        self.file_panel.frame.pack(side=LEFT, fill=Y, expand=False, padx=(0, 10), pady=(0, 5))
         
-        # 创建右侧面板
+        # 创建右侧整体容器，垂直布局link_panel和tree_view
         right_frame = ttk.Frame(main_frame, padding=(5, 0))
-        right_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=5, pady=5)
+        right_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=5, pady=(0, 0))
         
-        # 创建链接面板
-        self.link_panel = LinkPanel(right_frame, self)
-        self.link_panel.frame.pack(fill=X, pady=(0, 10), padx=5)
-        
-        # 创建树形视图面板
+        # 垂直容器，顶部为link_panel，底部为tree_view
+        right_top = ttk.Frame(right_frame)
+        right_top.pack(side=TOP, fill=X, anchor='n')
+        self.link_panel = LinkPanel(right_top, self)
+        self.link_panel.frame.pack(fill=X, padx=5, pady=(0, 4))
         self.tree_view = TreeView(right_frame, self)
         self.tree_view.frame.pack(fill=BOTH, expand=True, padx=5, pady=(0, 5))
         
@@ -145,7 +147,14 @@ class App:
         """
         self.init_json_data()
         success, message = self.json_data.load(filepath)
-        
+        # 自动补全统计字段
+        try:
+            from utils.json_handler import fix_json_fields
+            if hasattr(self.json_data, 'data') and isinstance(self.json_data.data, dict):
+                fixed, _ = fix_json_fields(self.json_data.data)
+                self.json_data.data = fixed
+        except Exception as e:
+            print(f"[fix_json_fields] 补全统计字段异常: {e}")
         if success:
             self.current_file = filepath
             

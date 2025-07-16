@@ -31,7 +31,8 @@ class SearchBar(ttk.Frame):
 
     def _trigger_search(self, event=None):
         value = self.var.get().strip()
-        if self.has_placeholder:
+        # 只在内容等于placeholder时才视为空
+        if self.has_placeholder and value == self.placeholder:
             value = ''
         if self.on_search:
             self.on_search(value)

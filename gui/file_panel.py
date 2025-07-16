@@ -49,8 +49,8 @@ class FilePanel:
         self.frame = ttk.LabelFrame(self.parent, text="JSON文件", padding="10")
         
         # 创建支持拖放的Listbox，设置为多选模式
-        self.file_listbox = tk.Listbox(self.frame, width=30, selectmode=tk.EXTENDED)
-        self.file_listbox.pack(fill=Y, expand=True)
+        self.file_listbox = tk.Listbox(self.frame, selectmode=tk.EXTENDED, height=25, width=30)  # 增加高度和宽度
+        self.file_listbox.pack(fill=BOTH, expand=True, padx=5, pady=5)
         self.file_listbox.bind('<<ListboxSelect>>', self.on_file_select)
         self.file_listbox.bind('<Double-Button-1>', self.start_rename)
         self.file_listbox.bind('<Return>', self.finish_rename)
@@ -65,6 +65,7 @@ class FilePanel:
         self.file_menu.add_command(label="列表删除", command=self.remove_selected_files)
         self.file_menu.add_command(label="重命名", command=self.start_rename)
         self.file_menu.add_command(label="删除文件", command=self.delete_selected_files)
+        self.file_menu.add_command(label="另存为", command=self.save_as_file)
         
         # 绑定右键点击事件
         self.file_listbox.bind("<Button-3>", self.show_file_menu)
@@ -879,3 +880,29 @@ class FilePanel:
                 messagebox.showinfo("完成", f"已推送 {pushed} 个文件到列表\n文件已保存在: {orig_dir}\n可继续操作或手动关闭窗口")
             ttk.Button(btn_frame, text="保存到本地", bootstyle="primary", command=save_selected, width=12).pack(side='left', padx=18)
             ttk.Button(btn_frame, text="推送列表", bootstyle="success", command=push_selected, width=12).pack(side='left', padx=18)
+
+    def save_as_file(self):
+        """将选中的JSON文件另存为新文件"""
+        selection = self.file_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("提示", "请先选择要另存为的JSON文件")
+            return
+        filename = self.file_listbox.get(selection[0])
+        filepath = self.file_paths.get(filename)
+        if not filepath or not os.path.exists(filepath):
+            messagebox.showerror("错误", f"文件不存在: {filepath}")
+            return
+        from tkinter import filedialog
+        import shutil
+        save_path = filedialog.asksaveasfilename(
+            title="另存为",
+            defaultextension=".json",
+            initialfile=filename,
+            filetypes=[("JSON文件", "*.json")]
+        )
+        if save_path:
+            try:
+                shutil.copyfile(filepath, save_path)
+                messagebox.showinfo("完成", f"已另存为: {save_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"另存为失败: {e}")

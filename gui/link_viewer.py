@@ -16,6 +16,7 @@ from tkinter import ttk, messagebox
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from utils.link_parser import LinkParser
+from collections import OrderedDict
 
 
 class LinkViewer(ttk.Toplevel):
@@ -122,7 +123,16 @@ class LinkViewer(ttk.Toplevel):
             bootstyle="success",
             width=10
         ).pack(side=TOP, pady=(0, 5))
-        
+
+        # 保存JSON按钮
+        ttk.Button(
+            btn_frame,
+            text="保存JSON",
+            command=self.save_json_file,
+            bootstyle="primary",
+            width=10
+        ).pack(side=TOP, pady=(0, 5))
+
         # 清空按钮
         ttk.Button(
             btn_frame,
@@ -402,6 +412,79 @@ class LinkViewer(ttk.Toplevel):
             messagebox.showinfo("导出成功", f"已复制 {len(links_to_export)} 个完整秒链到剪贴板")
         except Exception as e:
             messagebox.showerror("导出错误", f"导出失败: {str(e)}")
+    
+    def save_json_file(self):
+        import json
+        from tkinter import filedialog, messagebox
+        from collections import OrderedDict
+        # 当前展示的所有链接
+        links = self.all_links if hasattr(self, 'all_links') else []
+        if not links:
+            messagebox.showwarning("提示", "当前没有可保存的秒链")
+            return
+        # 构造标准 files 列表
+        export_files = []
+        for f in links:
+            # 提取size
+            size = 0
+            if 'size_bytes' in f:
+                size = int(f['size_bytes'])
+            elif 'size' in f:
+                try:
+                    size = int(f['size'])
+                except Exception:
+                    size = 0
+            elif 'size_str' in f:
+                s = f['size_str'].strip().upper()
+                if s.endswith('GB'):
+                    size = int(float(s[:-2].strip()) * 1024 * 1024 * 1024)
+                elif s.endswith('MB'):
+                    size = int(float(s[:-2].strip()) * 1024 * 1024)
+                elif s.endswith('KB'):
+                    size = int(float(s[:-2].strip()) * 1024)
+                elif s.endswith('B'):
+                    size = int(float(s[:-1].strip()))
+            # 提取etag
+            etag = f.get('etag', '')
+            if not etag and 'full_link' in f:
+                parts = f['full_link'].split('#')
+                if len(parts) >= 2:
+                    etag = parts[0].split('$')[-1]
+            export_files.append({
+                'path': str(f.get('path', f.get('name', ''))).split('\n')[0],
+                'size': str(size),
+                'etag': etag
+            })
+        # 统计字段
+        total_files = len(export_files)
+        total_size = sum(int(f['size']) for f in export_files)
+        if total_size < 1024:
+            formatted_size = f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            formatted_size = f"{total_size/1024:.2f} KB"
+        elif total_size < 1024 * 1024 * 1024:
+            formatted_size = f"{total_size/1024/1024:.2f} MB"
+        else:
+            formatted_size = f"{total_size/1024/1024/1024:.2f} GB"
+        # 用 OrderedDict 保证字段顺序
+        export_json = OrderedDict()
+        export_json['scriptVersion'] = '1.0.1'
+        export_json['exportVersion'] = '1.0'
+        export_json['usesBase62EtagsInExport'] = True
+        export_json['commonPath'] = ''
+        export_json['totalFilesCount'] = total_files
+        export_json['totalSize'] = total_size
+        export_json['formattedTotalSize'] = formatted_size
+        export_json['files'] = export_files
+        save_path = filedialog.asksaveasfilename(
+            title="保存JSON文件",
+            defaultextension=".json",
+            filetypes=[("JSON文件", "*.json")]
+        )
+        if save_path:
+            with open(save_path, 'w', encoding='utf-8') as f:
+                json.dump(export_json, f, ensure_ascii=False, indent=2)
+            messagebox.showinfo("完成", f"已保存JSON文件到: {save_path}")
     
     def clear_viewer(self):
         """清空树状图"""
