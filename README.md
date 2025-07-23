@@ -2,10 +2,13 @@
 python3.12版本构建，本仓库代码全由ai生成
 主要查看和管理123云盘秒链
 
-<img width="1066" height="739" alt="image" src="https://github.com/user-attachments/assets/0a374811-48dc-4d94-9ed7-2be71f3dbca4" />
+<img width="1842" height="1281" alt="image" src="https://github.com/user-attachments/assets/13354b35-bd4b-4c95-8303-e4e1376c9bc2" />
+
 
 版本更新日志
-
+1.4
+- 懒得说了
+- 搜索和展示列表的优化
 1.3.1
 - 修复一下保存文件的错误
 - 修复搜索资源上的错误，加上屏蔽词
