@@ -30,7 +30,7 @@ class DirFilterMenu:
         """
         获取下拉菜单选项：
         - 只有全部
-        - 有二级目录时，全部+二级目录（超7字省略...）
+        - 有二级目录时，全部+二级目录（不再省略）
         - 二级目录过多时，支持展开三级目录
         返回：
         [
@@ -44,19 +44,41 @@ class DirFilterMenu:
             return [{'label': '全部', 'value': '全部'}]
         options = [{'label': '全部', 'value': '全部'}]
         for second, thirds in tree.items():
-            label = self._shorten(second)
+            label = second  # 不再省略
             if thirds:
                 children = [
-                    {'label': self._shorten(t), 'value': f'{second}/{t}'} for t in sorted(thirds)
+                    {'label': t, 'value': f'{second}/{t}'} for t in sorted(thirds)
                 ]
                 options.append({'label': label, 'value': second, 'children': children})
             else:
                 options.append({'label': label, 'value': second})
         return options
 
+    def get_full_name_mapping(self):
+        """
+        获取显示名称到完整名称的映射，用于鼠标悬浮显示
+        返回：
+        [
+            {'label': '显示名称', 'value': '完整名称'},
+            ...
+        ]
+        """
+        mapping = {}
+        tree = self.dir_tree
+        if not tree:
+            return mapping
+
+        for second, thirds in tree.items():
+            # 不再有缩短，label就是完整名
+            # mapping[second] = second  # 可选，实际用不到
+            if thirds:
+                for third in sorted(thirds):
+                    # mapping[f"{second}→{third}"] = f"{second}→{third}"  # 可选，实际用不到
+                    pass
+        return mapping
+
     def _shorten(self, name):
-        if len(name) > 7:
-            return name[:7] + '...'
+        # 直接返回原名，不做省略
         return name
 
     def filter_files(self, select_value):

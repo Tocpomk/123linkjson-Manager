@@ -270,3 +270,107 @@ def backup_json_file(filepath: str) -> Tuple[bool, str]:
         return True, backup_filepath
     except Exception as e:
         return False, f"备份文件时出错: {str(e)}"
+
+
+def fix_json_fields(data: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
+    """
+    补全JSON文件的统计字段
+    
+    Args:
+        data: JSON数据
+        
+    Returns:
+        Tuple[Dict[str, Any], bool]: (修复后的数据, 是否进行了修改)
+    """
+    if not isinstance(data, dict):
+        return data, False
+    
+    changed = False
+    
+    # 确保files字段存在且为列表
+    if 'files' not in data:
+        data['files'] = []
+        changed = True
+    elif not isinstance(data['files'], list):
+        data['files'] = []
+        changed = True
+    
+    files = data['files']
+    
+    # 计算总文件数和总大小
+    total_files = len(files)
+    total_size = 0
+    
+    # 处理每个文件，确保必要字段存在
+    for file in files:
+        if not isinstance(file, dict):
+            continue
+            
+        # 确保size字段是整数
+        if 'size' in file:
+            try:
+                size = int(file['size'])
+                file['size'] = size
+                total_size += size
+            except (ValueError, TypeError):
+                file['size'] = 0
+        else:
+            file['size'] = 0
+            changed = True
+        # 确保path字段存在
+        if 'path' not in file:
+            if 'name' in file:
+                file['path'] = file['name']
+            else:
+                file['path'] = "未命名文件"
+            changed = True
+        # 确保etag字段存在
+        if 'etag' not in file:
+            if 'hash' in file:
+                file['etag'] = file['hash']
+            elif 'sha1' in file:
+                file['etag'] = file['sha1']
+            else:
+                file['etag'] = ""
+            changed = True
+    
+    # 更新统计字段
+    if 'totalFilesCount' not in data or data['totalFilesCount'] != total_files:
+        data['totalFilesCount'] = total_files
+        changed = True
+        
+    if 'totalSize' not in data or data['totalSize'] != total_size:
+        data['totalSize'] = total_size
+        changed = True
+    
+    # 添加格式化的大小字段
+    if 'formattedTotalSize' not in data:
+        if total_size < 1024:
+            formatted_size = f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            formatted_size = f"{total_size/1024} KB"
+        elif total_size < 1024 * 1024 * 1024:
+            formatted_size = f"{total_size/1024/1024} MB"
+        else:
+            formatted_size = f"{total_size/1024/1024/1024} GB"
+        data['formattedTotalSize'] = formatted_size
+        changed = True
+    
+    # 确保其他必要字段存在
+    if 'scriptVersion' not in data:
+        data['scriptVersion'] = '1.0.1'
+        changed = True
+        
+    if 'exportVersion' not in data:
+        data['exportVersion'] = 0
+        changed = True
+        
+    if 'usesBase62EtagsInExport' not in data:
+        data['usesBase62EtagsInExport'] = True
+        changed = True
+        
+    if 'commonPath' not in data:
+        data['commonPath'] = ""
+        changed = True
+    
+    return data, changed

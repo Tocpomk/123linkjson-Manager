@@ -34,7 +34,7 @@ class App:
             root: TkinterDnD.Tk实例，主窗口
         """
         self.root = root
-        self.root.title("123云盘秒链json管理器1.3.1")
+        self.root.title("123云盘秒链json管理器1.4.0")
         
         # 设置窗口图标
         self.set_window_icon()

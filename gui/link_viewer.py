@@ -216,9 +216,16 @@ class LinkViewer(ttk.Toplevel):
                 # 获取文件名
                 name = link['path'].split('/')[-1] if '/' in link['path'] else link['path']
                 
-                # 格式化文件大小（以GB为单位）
+                # 格式化文件大小（自动选择合适的单位）
                 size = int(link['size'])
-                size_str = f"{size/1024/1024/1024:.2f} GB"
+                if size < 1024:
+                    size_str = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_str = f"{size/1024:.2f} KB"
+                elif size < 1024 * 1024 * 1024:
+                    size_str = f"{size/1024/1024:.2f} MB"
+                else:
+                    size_str = f"{size/1024/1024/1024:.2f} GB"
                 
                 # 生成完整秒链格式
                 file_info = {
@@ -436,14 +443,20 @@ class LinkViewer(ttk.Toplevel):
                     size = 0
             elif 'size_str' in f:
                 s = f['size_str'].strip().upper()
-                if s.endswith('GB'):
-                    size = int(float(s[:-2].strip()) * 1024 * 1024 * 1024)
-                elif s.endswith('MB'):
-                    size = int(float(s[:-2].strip()) * 1024 * 1024)
-                elif s.endswith('KB'):
-                    size = int(float(s[:-2].strip()) * 1024)
-                elif s.endswith('B'):
-                    size = int(float(s[:-1].strip()))
+                try:
+                    if s.endswith('GB'):
+                        size = int(float(s[:-2].strip()) * 1024 * 1024 * 1024)
+                    elif s.endswith('MB'):
+                        size = int(float(s[:-2].strip()) * 1024 * 1024)
+                    elif s.endswith('KB'):
+                        size = int(float(s[:-2].strip()) * 1024)
+                    elif s.endswith('B'):
+                        size = int(float(s[:-1].strip()))
+                    else:
+                        # 如果没有单位，尝试直接解析为数字
+                        size = int(float(s))
+                except (ValueError, TypeError):
+                    size = 0
             # 提取etag
             etag = f.get('etag', '')
             if not etag and 'full_link' in f:

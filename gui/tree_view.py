@@ -50,7 +50,7 @@ class TreeView:
         # 创建主框架
         self.frame = ttk.LabelFrame(self.parent, text="秒链展示列表", padding="10")
 
-        # 顶部一行：搜索框+按钮
+        # 顶部一行：搜索框+第一行按钮
         top_row = ttk.Frame(self.frame)
         top_row.pack(side=TOP, fill=X, pady=(0, 0))  # 进一步缩小间距
         self.search_value = ''
@@ -59,9 +59,12 @@ class TreeView:
             self.update_view()
         self.search_bar = SearchBar(top_row, on_search=on_search)
         self.search_bar.pack(side='left', fill='x', expand=True, padx=(0, 8))
-        ttk.Button(top_row, text="导出秒链", command=self.export_all_links, bootstyle="info").pack(side='left', padx=5)
-        ttk.Button(top_row, text="秒链排序", command=self.sort_current_file, bootstyle="warning").pack(side='left', padx=5)
-        # 目录层级下拉框单独一行
+        
+        # 第一行按钮：与搜索框同一水平
+        ttk.Button(top_row, text="导出秒链", command=self.export_all_links, bootstyle="info").pack(side='right', padx=2)
+        ttk.Button(top_row, text="全部导出", command=self.export_all_files, bootstyle="success").pack(side='right', padx=2)
+        
+        # 第二行：目录筛选+第二行按钮
         dir_row = ttk.Frame(self.frame)
         dir_row.pack(side=TOP, fill=X, pady=(6, 4))  # 增大与上方间距，底部略留空
         ttk.Label(dir_row, text="目录筛选:").pack(side='left', padx=(0, 2))
@@ -69,9 +72,32 @@ class TreeView:
         self.dir_level_combo = ttk.Combobox(dir_row, textvariable=self.dir_level_var, width=18, state="readonly")
         self.dir_level_combo.pack(side='left')
         self.dir_level_combo.bind("<<ComboboxSelected>>", lambda e: self.update_view())
-        # 移除保存JSON按钮
-        # ttk.Button(top_row, text="保存JSON", command=self.save_json_file, bootstyle="primary").pack(side='left', padx=5)
+        self.tooltip = None
+        self.tooltip_timer = None
+        self.last_tooltip_index = None
+        self.combo_popup_open = False
+        self.combo_popup_window = None
 
+        # 文件大小筛选模块
+        ttk.Label(dir_row, text="  文件大小:").pack(side='left', padx=(10, 2))
+        self.size_min_var = tk.StringVar()
+        self.size_max_var = tk.StringVar()
+        self.size_unit_var = tk.StringVar(value="MB")
+        size_entry_min = ttk.Entry(dir_row, textvariable=self.size_min_var, width=7)
+        size_entry_min.pack(side='left')
+        ttk.Label(dir_row, text="-").pack(side='left')
+        size_entry_max = ttk.Entry(dir_row, textvariable=self.size_max_var, width=7)
+        size_entry_max.pack(side='left')
+        size_unit_combo = ttk.Combobox(dir_row, textvariable=self.size_unit_var, values=["B", "KB", "MB", "GB"], width=4, state="readonly")
+        size_unit_combo.pack(side='left', padx=(2, 0))
+        # 绑定回车和下拉事件
+        size_entry_min.bind('<Return>', lambda e: self.update_view())
+        size_entry_max.bind('<Return>', lambda e: self.update_view())
+        size_unit_combo.bind("<<ComboboxSelected>>", lambda e: self.update_view())
+        
+        # 第二行按钮：与目录筛选同一水平
+        ttk.Button(dir_row, text="删除秒链", command=self.delete_selected, bootstyle="danger").pack(side='right', padx=2)
+        ttk.Button(dir_row, text="秒链排序", command=self.sort_current_file, bootstyle="warning").pack(side='right', padx=2)
         # 树形视图区域+滚动条
         tree_container = ttk.Frame(self.frame)
         tree_container.pack(side=TOP, fill=BOTH, expand=True)
@@ -79,8 +105,8 @@ class TreeView:
         self.tree.heading("name", text="文件名", command=lambda: self.sort_tree("name"))
         self.tree.heading("size", text="文件大小", command=lambda: self.sort_tree("size"))
         self.tree.heading("etag", text="秒链", command=lambda: self.sort_tree("etag"))
-        self.tree.column("name", width=320, minwidth=180, anchor="w")      # 文件名左对齐，宽度更紧凑
-        self.tree.column("size", width=100, minwidth=80, anchor="e")      # 文件大小右对齐，宽度更紧凑
+        self.tree.column("name", width=360, minwidth=180, anchor="w")      # 文件名左对齐，宽度更紧凑
+        self.tree.column("size", width=100, minwidth=80, anchor="center")      # 文件大小右对齐，宽度更紧凑
         self.tree.column("etag", width=260, minwidth=180, anchor="center") # 秒链居中，宽度更紧凑
         # 设置字体和行高，让表格更紧凑
         style = ttk.Style()
@@ -139,26 +165,12 @@ class TreeView:
         page_size_combo.pack(side=LEFT)
         page_size_combo.bind("<<ComboboxSelected>>", self.on_page_size_change)
         
-        # 配置列（删除多余的列配置，避免覆盖三列设置）
-        # self.tree["columns"] = ("size", "etag")
-        # self.tree.column("size", width=100, minwidth=100)
-        # self.tree.column("etag", width=200, minwidth=150)
-        # self.tree.heading("size", text="大小", anchor=W)
-        # self.tree.heading("etag", text="ETag", anchor=W)
-        
-        # 绑定排序事件
-        # self.tree.heading("#0", command=lambda: self.sort_tree("path")) # This line is removed as per the new_code
-        # self.tree.heading("size", command=lambda: self.sort_tree("size")) # This line is removed as per the new_code
-        # self.tree.heading("etag", command=lambda: self.sort_tree("etag")) # This line is removed as per the new_code
         
         # 创建右键菜单
         self.context_menu = tk.Menu(self.tree, tearoff=0)
         self.context_menu.add_command(label="导出选中链接", command=self.export_selected)
         self.context_menu.add_command(label="删除链接", command=self.delete_selected)
-        
-        # 绑定右键点击事件
-        # self.tree.bind("<Button-3>", self.show_context_menu) # This line is removed as per the new_code
-        
+                
         # 排序状态
         self.sort_column = None
         self.sort_reverse = False
@@ -186,14 +198,19 @@ class TreeView:
                 for child in opt['children']:
                     combo_values.append(f"{opt['label']}→{child['label']}")
                     value_to_label[f"{opt['label']}→{child['label']}"] = child['value']
-        # 只更新下拉框选项，不重建控件
-        self.dir_level_combo['values'] = combo_values
-        # 保持选中项有效
-        if self.dir_level_var.get() not in combo_values:
-            self.dir_level_var.set(combo_values[0] if combo_values else "全部")
+        
+        # 更新完整名称映射
+        self.dir_full_name_mapping = dir_menu.get_full_name_mapping()
+        # 直接显示完整目录名
+        display_combo_values = combo_values
+        self.dir_level_combo['values'] = display_combo_values
+        self.combo_label_map = {label: label for label in combo_values}
+        if self.dir_level_var.get() not in display_combo_values:
+            self.dir_level_var.set(display_combo_values[0] if display_combo_values else "全部")
         # 过滤文件（只有当目录筛选不是'全部'时才过滤）
         select_label = self.dir_level_var.get()
-        select_value = value_to_label.get(select_label, '全部')
+        # 还原为原始label
+        select_value = value_to_label.get(self.combo_label_map.get(select_label, select_label), '全部')
         if select_value != '全部':
             all_files = dir_menu.filter_files(select_value)
         # 目录筛选后再进行搜索过滤
@@ -209,6 +226,39 @@ class TreeView:
                 s = re.sub(r'\s+', ' ', s)  # 多余空格
                 return s.strip()
             all_files = [f for f in all_files if keyword in clean_name(f['path'].lower()) or keyword in clean_name(f.get('name', '').lower())]
+        # 文件大小筛选
+        if hasattr(self, 'size_min_var') and hasattr(self, 'size_max_var') and hasattr(self, 'size_unit_var'):
+            min_val = self.size_min_var.get().strip()
+            max_val = self.size_max_var.get().strip()
+            unit = self.size_unit_var.get().strip().upper()
+            def to_bytes(val, unit):
+                try:
+                    v = float(val)
+                except:
+                    return None
+                if unit == 'B':
+                    return v
+                elif unit == 'KB':
+                    return v * 1024
+                elif unit == 'MB':
+                    return v * 1024 * 1024
+                elif unit == 'GB':
+                    return v * 1024 * 1024 * 1024
+                return None
+            min_bytes = to_bytes(min_val, unit) if min_val else None
+            max_bytes = to_bytes(max_val, unit) if max_val else None
+            if min_bytes is not None or max_bytes is not None:
+                def size_in_range(f):
+                    try:
+                        size = int(f.get('size', 0))
+                    except:
+                        size = 0
+                    if min_bytes is not None and size < min_bytes:
+                        return False
+                    if max_bytes is not None and size > max_bytes:
+                        return False
+                    return True
+                all_files = [f for f in all_files if size_in_range(f)]
         total_files = len(all_files)
         # 计算总页数
         self.total_pages = max(1, (total_files + self.page_size - 1) // self.page_size)
@@ -224,7 +274,14 @@ class TreeView:
         self.reset_view()
         # 添加当前页的文件
         for file in current_page_files:
-            name = file.get('name', file['path'])
+            # 判断当前目录筛选
+            select_label = self.dir_level_var.get()
+            if select_label == '全部':
+                name = file.get('name', file['path'])
+            else:
+                # 只显示文件名部分（去除目录）
+                path = file.get('path', '')
+                name = path.split('/')[-1] if '/' in path else path
             size = int(file['size']) if 'size' in file else 0
             if size < 1024:
                 size_str = f"{size} B"
@@ -238,6 +295,10 @@ class TreeView:
             self.tree.insert("", "end", iid=file['path'], values=(name, size_str, etag))
         # 更新分页状态
         self.update_pagination_status(total_files)
+
+    def on_dir_select(self, value):
+        self.dir_dropdown.var.set(value)
+        self.update_view()
     
     def reset_view(self):
         """清空树形视图"""
@@ -281,7 +342,6 @@ class TreeView:
                 self.tree.insert("", "end", iid=file['path'], values=(name, size_str, etag))
             return
         # 其他列保持原有排序逻辑
-        # 如果点击的是当前排序列，反转排序顺序
         if self.sort_column == column:
             self.sort_reverse = not self.sort_reverse
         else:
@@ -477,6 +537,48 @@ class TreeView:
         text.config(yscrollcommand=scrollbar.set)
         ttk.Button(frame, text="关闭", command=export_dialog.destroy, bootstyle="secondary").pack(pady=(0, 5))
     
+    def export_all_files(self):
+        """
+        导出所有文件的秒链
+        """
+        if not self.app.json_data or not self.app.json_data.files:
+            messagebox.showwarning("警告", "当前没有可导出的文件")
+            return
+        
+        # 获取所有文件
+        all_files = self.app.json_data.files
+        
+        # 如果有搜索过滤，只导出当前显示的文件
+        if hasattr(self, 'current_page_files') and self.current_page_files:
+            all_files = self.current_page_files
+        
+        link = self.app.export_selected_links(all_files)
+        self.app.root.clipboard_clear()
+        self.app.root.clipboard_append(link)
+        
+        export_dialog = tk.Toplevel(self.app.root)
+        export_dialog.title("导出全部链接")
+        export_dialog.geometry("600x300")
+        export_dialog.transient(self.app.root)
+        export_dialog.grab_set()
+        export_dialog.update_idletasks()
+        width = export_dialog.winfo_width()
+        height = export_dialog.winfo_height()
+        x = (export_dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (export_dialog.winfo_screenheight() // 2) - (height // 2)
+        export_dialog.geometry(f"{width}x{height}+{x}+{y}")
+        frame = ttk.Frame(export_dialog, padding="10")
+        frame.pack(fill=BOTH, expand=True)
+        ttk.Label(frame, text=f"已导出 {len(all_files)} 个文件的链接到剪贴板").pack(pady=(0, 5))
+        text = tk.Text(frame, wrap=tk.WORD)
+        text.pack(fill=BOTH, expand=True, pady=(0, 10))
+        text.insert(tk.END, link)
+        text.config(state=tk.DISABLED)
+        scrollbar = ttk.Scrollbar(text, command=text.yview)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        text.config(yscrollcommand=scrollbar.set)
+        ttk.Button(frame, text="关闭", command=export_dialog.destroy, bootstyle="secondary").pack(pady=(0, 5))
+    
     def sort_current_file(self):
         """
         秒链排序按钮：排序当前文件列表，并自动保存
@@ -551,6 +653,7 @@ class TreeView:
                 self.update_view()
         except ValueError:
             pass
+
 
     def save_json_file(self):
         import json
